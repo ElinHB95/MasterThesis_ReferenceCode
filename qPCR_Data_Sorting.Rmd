@@ -1,0 +1,696 @@
+---
+title: "Sorting of Exp IO qPCR Data"
+output:
+  pdf_document: default
+  html_document:
+    self_contained: yes
+    output_file: ElinHBerntsson_MasterThesis_DataSorting
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = normalizePath('~/Documents/Master/PCR/RStudio/RStudio_qPCR_Exp1.cDNA'))
+
+```
+
+
+
+##### qPCR Data: Frozen cDNA chiPSC22 and Exp1 (D:0,3,8,13)
+
+
+In this first part, R reads data into a common list and then extracts each list data frame (df) into separate dfs with names accordingly.
+We also let R read the files of differing structure and content into a special list.
+
+file_names is a list of all the files we want to load into R. 
+list.files reads files in folder in alphabetical order - will need to adjust according to this order in the rest of the code e.g. in the day vector, etc.
+
+read.delim2 reads all text files defined in code to be of interest into data_list. Skipping the first 10 rows to get correct columns names, and other functions.
+
+```{r load files into R}
+
+# Start by pointing R in the right direction; where to find the desired files.
+
+  # Define the path to the directory containing the files, instead of setwd(), which can create difficulties 
+  path_to_files <- "/Users/elinberntsson/Documents/Master/PCR/RStudio/RStudio_qPCR_Exp1.cDNA/Raw_Data_IO_Samples/"
+
+  # List all files in the directory, list.files order files alphabetically by default
+  file_names <- list.files(path = path_to_files)
+
+  # Print the list of file names to see which files are included
+  cat("Files inlcuded in list:\n", file_names)
+
+
+  # Attach the path to the all the file names so R knows which directory to look in for files
+  ## Made one for the files of same structure 
+  full_file_paths_common <- paste0(path_to_files, file_names[2:7]) # You'll have to change file_names vector accordingly, if not all files are of same structure 
+  ## One path for the special ones, e.g. chiPSC22 and D0/chiPSC22 data
+  full_file_paths_special <- paste0(path_to_files, file_names[c(1,8)])
+
+
+#sapply(full_file_paths, file.exists) # If you want to check if files in file_names exist in file path
+
+
+
+# We want R to read all text files into a list of data frames (dfs) -> then extract each list element into separate dfs
+
+  # Read text files defined in full_file_paths into a list of dfs with read.delim2. 
+  ## Also e.g. skip 10 first rows to get correct column names, use headers as column names, etc.
+  
+  # One 'common'
+  data_list_common <- lapply(full_file_paths_common, read.delim2, colClasses = c(Well="NULL"), header = TRUE, skip = 10, fill = TRUE)
+  # One 'special'
+  data_list_special <- lapply(full_file_paths_special, read.delim2, colClasses = c(Well="NULL"), header = TRUE, skip = 10, fill = TRUE)
+
+```
+
+<br>
+<br>
+
+In the 4 following chunks, the data from the data_list_common will be operated on. After this, the data with diverging structure will be handled. 
+
+
+### Exp1 D:3,8,13
+
+Each list element is extracted into separate dfs, with corresponding names. head() is used to demonstrate the structure of the complete, unsorted data.
+
+```{r list elements extraction into dfs}
+
+# Extract list elements into separate data frames, naming the dfs accordingly
+
+  day_index <- rep(c('d3', 'd8', 'd13'), each = 2) # Add days here when have data for them - 2 of each because 2 bio.replicas
+  replica <- rep(c(1,2), length(data_list_common)) # Create vector with repeated bio.replica number, as we have two replicas per day (& condition)
+  
+  # Store the names of the full dfs for later use
+  full_df_names <- vector("list", length(data_list_common))
+
+  # Make sure that the length of 'day' is the same as the length of 'data_list' - as a checkpoint that correct data --> correct df with corresponding name
+  if(length(day_index) == length(data_list_common)) {
+    
+    for (i in 1:(length(data_list_common))) {
+      
+      full_df_name <- paste("full", '_', day_index[i], '.', replica[i], sep = "")
+      full_df_names[[i]] <- full_df_name
+      assign(full_df_name, data.frame(data_list_common[[i]])) # Creates df from list for each day, naming of df is dynamic
+    
+      # Print a message indicating the name of the data frame
+      cat("Head of the data frame", full_df_name, ":\n")
+
+      # Print the head of the newly created data frame
+      print(head(get(full_df_name)))
+
+    }
+  }
+
+```
+
+<br>
+<br>
+
+In the following chunk of code the complete dfs are cleaned and sorted. 
+Some rows with unnecessary information are excluded, data is ordered after gene markers (according to how they are structured on the plate).  
+
+The cleaned and sorted data is then stored in a list of dfs (geneorder_list_common).
+
+```{r clean and order after genes}
+
+# Remove rows with unwanted data
+
+  # Created vector with row numbers that we want to skip to clean data
+  skiprow_d <- c(13:16, (13:16)+16, (13:16)+16*2, (13:16)+16*3, (13:16)+16*4, (13:16)+16*5, (13:16)+16*6, (13:16)+16*7, 129) #Looks like this because lazy
+
+  # Store the names of the full dfs for later use
+  clean_names <- vector("list", length(data_list_common))
+  
+  
+  # Utilize skiprow_d vector to exclude rows we do not want
+  ## Make sure that the length of 'day' is the same as the length of 'data_list_common' - as a checkpoint step
+  
+  if(length(day_index) == length(data_list_common)) {
+    
+    for (i in 1:length(data_list_common)) {
+      
+      full_df_name <- full_df_names[[i]]
+  clean_name <- paste("clean", '_', day_index[i], '.', replica[i], sep = "")
+  clean_names[[i]] <- clean_name
+      assign(clean_name, get(full_df_name)[-skiprow_d,]) # Creates df from list for each day, naming of df is dynamic
+      
+    }
+  }
+
+
+# Order data frames after desired gene marker order
+
+  # First, convert the 'gene' column to a factor with levels in the desired order: Use d3.1 as basis
+  clean_d3.1$Detector.Name <- factor(clean_d3.1$Detector.Name, 
+                                     levels = c('Actb-SYBR', 'GAPDH-Syber', 'SOX17-Sybr', 'RSPO3-Sybr', 'SPINK2-Sybr', 'HOXA9-Sybr', 'Runx1', 'Gata2-Sybr'))
+
+
+  ## Create empty list to keep df:s in
+  geneorder_list_common <- NULL
+
+    for (i in 1:length(data_list_common)) {
+      
+  geneord_name <- paste("geneord", '_', day_index[i], '.', replica[i], sep = "")
+  clean_name <- clean_names[[i]]
+      assign(geneord_name, get(clean_name)[order(clean_d3.1$Detector.Name),]) # Creates df from list for each day, naming of df is dynamic
+    
+    # Fill list, use later when cbind() extra columns to dfs
+    geneorder_list_common[[i]] <- get(geneord_name)
+    
+    }
+
+```
+
+<br>
+<br>
+
+In the following chunk we want to add columns with information about the experiment, conditions, etc. 
+
+A df with desired columns are first created, and named accordingly. 
+This column is then bound to the ordered dfs via cbind() command. A list of the new dfs is created (cbind_list).
+
+```{r columns with info added}
+
+# Create columns with important data (Exp_name, Time_point, Condition, Replicate, Temp.free_control), which we then want to add to correct dfs
+
+  Exp1 <- rep('Exp1', 96) # Change accordingly 
+  Condition <- rep(c(3, 'NA', 'NA', 'NA', 3, 3, 1.8, 1.8, 1.8, 5, 5, 5), 8) #mM - Strange order because of how sample data is loaded into R (as characters)
+  Replicate1 <- rep(1, 96)
+  Replicate2 <- rep(2, 96)
+  Tempfree_control <- rep(c('no', 'yes', 'yes', 'yes', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no'), 8) # Same goes for order here as with condition vector.
+
+
+  # Timepoints changes depending on harvesing day, need to create these in e.g. a for loop like below
+  ## Create vector with harvesing days to choose from
+  all_days <- c('Day 3', 'Day 8', 'Day 13') # Add more days when have data, in order according to files loaded into R
+  
+  
+  # Initialize time points and columns lists
+  timepoint_list <- NULL
+  columns_list <- NULL 
+
+
+    for (i in 1:length(day_index)) {
+      # Create variable names
+      timepoint_names <- paste("Timepoint", "_", day_index[i], sep = "")
+    
+      # Match the day in 'all_days' with the corresponding 'day' entry 
+      ## which() returns index of match if there is one, otherwise returns an empty vector of length = 0
+      day_match <- which(gsub("Day ", "d", all_days) == day_index[i]) #gsub() replaced 'Day ' with 'd' so that matching can be done
+      
+      # Check if a matching day was found
+      if(length(day_match) > 0){
+        
+        timepoint_values <- rep(all_days[day_match], 96) # If matching day, create vector with specific day that matches, e.g. 'Day 3' for 'd3'
+        assign(timepoint_names, timepoint_values) # Assign the newly created time point vector to the created time point name
+      
+        # Append to list with time points dfs
+        ## Assigns right timepoint_values to the correct list position given by timepoint_names
+        timepoint_list[[timepoint_names]] <- timepoint_values
+      
+        # Create columns with all important data
+        columns <- paste("columns", '_', day_index[i], '.', replica[i], sep = "")
+        assign(columns, data.frame(Exp1, get(timepoint_names), Condition, replica[i], Tempfree_control))
+      
+        columns_list[[i]] <- get(columns)
+        
+      }
+    }
+
+
+  # Add created columns to data frames accordingly
+
+  cbind_list_common <- NULL
+
+  for (i in 1:length(day_index)) {
+    
+    cbind_df <- paste("cbound", '_', day_index[i], '.', replica[i], sep = "")
+    assign(cbind_df, cbind(as.data.frame(columns_list[[i]]), as.data.frame(geneorder_list_common[[i]])))
+  
+    cbind_list_common[[i]] <- get(cbind_df)
+    
+  }
+
+```
+
+<br>
+<br>
+
+Here, columns containing information that is of no interest, and the the data (rows) from the negative controls are excluded.
+The list of dfs we are left with contain all necessary data for continued analysis, utilizing whatever R package available. 
+
+The data might need to be modified further to fit the required structure for whatever R package you want to use. 
+
+```{r filtering of data}
+  
+# Create dfs with only columns of interest
+
+  sorted_list_common <- NULL
+
+  col_index <- c(1:7, 10)
+  for (i in 1:length(day_index)) {
+    sorted_data <- paste("sorted", '_', day_index[i], '.', replica[i], sep = '')
+    assign(sorted_data, cbind_list_common[[i]][,col_index])
+  
+    sorted_list_common[[i]] <- get(sorted_data)
+  }
+  
+    
+# Remove template free control data
+  
+  Filtered_list_common <- NULL
+
+  for (i in 1:length(day_index)) {
+    
+    # Create a name for the filtered data
+    filtered_data_name <- paste('Filtered', '_', day_index[i], '.', replica[i], sep = '')
+  
+    # Directly filter the df where Tempfree_control is not equal to 'yes'
+    filtered_data <- sorted_list_common[[i]][sorted_list_common[[i]]$Tempfree_control != 'yes',]
+  
+    # Assign a new names to the 1-8th columns
+    col_names <- c('Experiment', 'Time point', 'Condition', 'BioReplica', 'Temp.free control', 'Position', 'Gene', 'Ct')
+    names(filtered_data)[1:8] <- col_names
+
+    # Assign the filtered data to a new variable in the environment
+    assign(filtered_data_name, filtered_data)
+    
+    Filtered_list_common[[i]] <- get(filtered_data_name)
+    
+  }
+  
+  filtered_data <- NULL # To clear the last saved iteration data from loop
+  
+# Use head() to demonstrate how data looks
+# print(head(Filtered_d3.1))
+
+```
+
+```{r hidden code for head(), echo=FALSE, results='asis'}
+
+# To make the html file look nice: this chunk is added to print the full data, while not showing the actual code in the html file. 
+  
+  cat("Head of the data frame Filtered_d3.1 as an example:\n")
+  cat(capture.output(head(Filtered_d3.1)), sep="\n")
+
+```
+
+<br>
+
+In the following parts, the 'special' data files are handled and cleaned separately. First data from Exp 1 D0, followed by chiPSC22 data. 
+
+Code starts with creating dfs with desired data - desired list elements from data_list_special are extracted into separate dfs, with corresponding names. 
+head() is used to demonstrate the structure of the complete, unsorted data.
+<br>
+
+### Exp1 D0
+
+The D0 data is handled similarly to the data from Day 3, 8 and 13 in the chunks above.
+
+```{r create df - special data D0}
+
+# Df with Exp1 D0 data is created 
+
+# D0/chiPSC22
+  assign(paste("full", '_', 'D0_chiPSC22', sep = ""), data.frame(data_list_special[[2]]))
+
+# Use head() to demonstrate how data looks
+# print(head(full_chiPSC22))
+
+```
+
+```{r hidden code for head() - special data D0, echo=FALSE, results='asis'}
+
+# To make the html file look nice: this chunk is added to print the full data, while not showing the actual code in the html file. 
+  
+  cat("Head of the data frame full_D0/chiPSC22:\n")
+  cat(capture.output(head(full_D0_chiPSC22)), sep="\n")
+
+```
+
+<br>
+
+In following chunk of code, the data is cleaned. 
+Some rows with unnecessary information are excluded. 
+
+```{r clean data from unwanted rows - special data D0}
+
+# Remove rows with unwanted data
+
+  # Created vectors with row numbers that I want to skip to clean data
+  skiprow_d <- c(13:16, (13:16)+16, (13:16)+16*2, (13:16)+16*3, (13:16)+16*4, (13:16)+16*5, (13:16)+16*6, (13:16)+16*7, 129) # For D0/chiPSC22 data
+
+
+  # Utilize skiprow vector to exclude rows we do not want
+  # D0/chiPSC22
+  clean_D0_chipsc22 <- full_D0_chiPSC22[-skiprow_d,]
+  
+  
+# Extract D0 data from the D0/chiPSC22 df to sort seperately
+  chipsc_rows_all <- c(10:12, 22:24, 34:36, 46:48, 58:60, 70:72, 82:84, 94:96)
+  clean_d0 <- clean_D0_chipsc22[-chipsc_rows_all,]
+  
+```
+
+<br>
+<br>
+
+Here, data is ordered after gene markers (according to how they are structured on the plate). 
+
+```{r order after genes - special data D0}
+
+# Order df after desired gene marker order
+
+  # First, convert the 'gene' column to a factor with levels in the desired order
+  clean_d0$Detector.Name <- factor(clean_d0$Detector.Name, 
+                                     levels = c('Actb-SYBR', 'GAPDH-Syber', 'SOX17-Sybr', 'RSPO3-Sybr', 'SPINK2-Sybr', 'HOXA9-Sybr', 'Runx1', 'Gata2-Sybr'))
+
+  # Order after the desired order
+  geneord_d0 <- clean_d0[order(clean_d0$Detector.Name),]
+
+```
+
+<br>
+<br>
+
+In the following chunk we want to add columns with information about the experiment, conditions, etc. 
+
+A df with desired columns are first created. 
+This column is then bound to the ordered df via cbind() command.
+
+```{r columns with info added - special data D0}
+
+# Create column with important data (Exp_name, Time_point, Replicate, Temp.free_control), which we then want to add to correct dfs
+
+  Exp1_d0 <- rep('Exp1', nrow(geneord_d0))
+  Day_0 <- rep('Day 0', nrow(geneord_d0))
+  Replicate_0 <- rep(c(2.1, 'NA', 'NA', 'NA', 2.1, 2.1, 2.2, 2.2, 2.2), 8) #uM - Strange order because of how sample name data is loaded into R (as characters)
+  Tempfree_control_0 <- rep(c('no', 'yes', 'yes', 'yes', 'no', 'no', 'no', 'no', 'no'), 8) # Same goes for order here as with condition vector.
+  
+  columns_d0 <- data.frame(Exp1_d0, Day_0, Replicate_0, Tempfree_control_0)
+  
+  # Add created columns to data frames accordingly
+  cbound_d0 <- cbind(columns_d0, geneord_d0)
+  
+```
+
+<br>
+<br>
+
+Here, columns containing information that is of no interest, and the the data (rows) from the negative controls are excluded.
+The Exp1 D0 df we are left with contain all necessary data for continued analysis, utilizing whatever R package available. 
+
+The data might need to be modified further to fit the required structure for whatever R package you want to use. 
+
+```{r filtering of data - special data D0}
+  
+# Create a df with only columns of interest from the cbound_d0 df
+  
+  col_index_d0 <- c(1:6, 9)
+
+  sorted_d0 <- cbound_d0[,col_index_d0]
+  
+
+  # Remove template free control data
+  Filtered_d0 <- sorted_d0[sorted_d0$Tempfree_control_0 != 'yes',]
+  
+  # Assign a new names to the 1-7th columns
+  col_names_d0 <- c('Experiment', 'Time point', 'Bioreplica', 'Temp.free control', 'Position', 'Gene', 'Ct')
+  names(Filtered_d0)[1:7] <- col_names_d0
+    
+# Use head() to demonstrate how data looks
+# print(head(Filtered_d0))
+
+```
+
+```{r hidden code for head() final - special data D0, echo=FALSE, results='asis'}
+
+# To make the html file look nice: this chunk is added to print the full data, while not showing the actual code in the html file. 
+  
+  cat("Head of the data frame Filtered_D0:\n")
+  cat(capture.output(head(Filtered_d0)), sep="\n")
+
+```
+<br>
+<br>
+
+### BPT
+
+To get all chiPSC22 data into one df, the average Ct values are calculated and one complete df is created.
+
+```{r create chipsc22 dfs - special data chipsc22}
+
+# Df with chipsc22 data is created
+
+# chiPSC22
+  assign(paste("full", '_', 'chiPSC22', sep = ""), data.frame(data_list_special[[1]]))
+
+# Use head() to demonstrate how data looks
+# print(head(full_chiPSC22))
+
+```
+
+```{r hidden code for head() - special data chipsc22, echo=FALSE, results='asis'}
+
+# To make the html file look nice: this chunk is added to print the full data, while not showing the actual code in the html file. 
+
+  cat("Head of the data frame full_chiPSC22:\n")
+  cat(capture.output(head(full_chiPSC22)), sep="\n")
+
+```
+
+<br>
+<br>
+
+In following chunk of code, the data is cleaned. 
+Some rows with unnecessary information are excluded. 
+
+```{r clean data from unwanted rows - special data chipsc22}
+
+# Remove rows with unwanted data
+
+  # Created vectors with row numbers that I want to skip to clean data
+  skiprow_chipsc22 <- c(7:10, 17:20, 27:30, 37:40, 47:50, 57:60, 67:70, 71) # For chiPSC22 data 
+
+
+  # Utilize skiprow vector to exclude rows we do not want
+  # chiPSC22
+  clean_chipsc22 <- full_chiPSC22[-skiprow_chipsc22,]
+  
+```
+
+<br>
+<br>
+
+Here we divide the df 'clean_D0_chipsc22' containing both D0 data and chiPSC22 data - so that a complete df with all chiPSC22 data can be generated.
+RSPO3 is put in a separate one, as we only have one set of Ct values of this marker (3 technical replicates).
+  
+```{r divide D0/chiPSC22 df into useful parts - special data chipsc22}
+
+# Extract chiPSC22 data from D0/chiPSC22 df - create one df without RSPO3 data and one with only RSPO3 data
+## Use the one without RSPO3 to calculate average Ct from chiPSC22 qPCR runs
+
+  chipsc_rows <- c(10:12, 22:24, 34:36, 46:48, 70:72, 82:84, 94:96)
+  chipsc_wo_rspo3 <- clean_D0_chipsc22[chipsc_rows,]
+  chipsc_rspo3 <- clean_D0_chipsc22[58:60,] # Add this one to the final df with averaged Ct:s between runs
+  
+```
+
+<br>
+<br>
+
+Mean Ct values are calculated within dfs and then between so that a common complete df can be created. 
+RSPO3 is then added to this (mean Ct values that is).
+
+```{r calculate Ct means within/between chiPSC22 dfs}
+
+# Before averaging chiPSC22 data from 2 separate runs, calculate mean Ct per gene marker in both individual data sets, then average between these
+
+### chiPSC22 from first PCR 
+
+  # Exclude template free controls, because cannot take mean on 'chr' vector otherwise
+  NC_rows <- c(4:6, 10:12, 16:18, 22:24, 28:30, 34:36, 40:42)
+  clean_chipsc22_wo_NC <- clean_chipsc22[-NC_rows,]
+
+
+# Mean of Ct per gene marker
+  
+  n <- 3 # 3 technical replicates we want to average over
+
+  means_list_chipcs <- NULL
+
+  # Calculate means for each gene marker of 3 rows using a for loop
+  ## i goes through sequence of length 1 to nrow(df), by n=3 as we have three tech.replicates we want to average
+  for (i in seq(1, nrow(clean_chipsc22_wo_NC), by = n)) {
+    
+    end_i <- min(i + n - 1, nrow(clean_chipsc22_wo_NC))
+    means_list_chipcs[[length(means_list_chipcs) + 1]] <- mean(as.numeric(clean_chipsc22_wo_NC[i:end_i, 'Ct']))
+    
+  }
+
+# Convert the list of means to a matrix or a dataframe
+  mean_matrix_chipsc <- do.call(rbind, means_list_chipcs)
+  
+
+   
+### chiPSC22 from D0/chiPSC22 df
+
+# Mean of Ct per gene marker
+  
+  n <- 3 # 3 technical replicates we want to average over
+
+  means_list_D0.chipsc <- NULL
+
+  # Calculate means for each gene marker of 3 rows using a for loop
+  ## i goes through sequence of length 1 to nrow(df), by n=3 as we have three tech.replicates we want to average
+  for (i in seq(1, nrow(chipsc_wo_rspo3), by = n)) {
+    
+    end_i <- min(i + n - 1, nrow(chipsc_wo_rspo3))
+    means_list_D0.chipsc[[length(means_list_D0.chipsc) + 1]] <- mean(as.numeric(chipsc_wo_rspo3[i:end_i, 'Ct']))
+    
+  }
+
+# Convert the list of means to a matrix or a dataframe
+  mean_matrix_D0.chipsc <- do.call(rbind, means_list_D0.chipsc)
+
+  
+  
+### RSPO3
+  mean_RSPO3 <- mean(as.numeric(chipsc_rspo3[, 'Ct']))
+
+  
+  
+# Calculate mean Ct of chiPSC22 data from both of mean_matrixes generated above
+  
+  all_chipsc <- data.frame(cbind(mean_matrix_chipsc, mean_matrix_D0.chipsc)) # Except for RSPO3 which is added below ofc
+  chipsc_Ct_mean <- rowMeans(all_chipsc, na.rm = TRUE)
+
+
+```
+
+<br>
+<br>
+
+In this chunk we cbind all other column data with the new Ct values
+This part might be unecessary, I just liked to make it similar to the other data (Exp1 D 0-13), to have a common structure for further analysis.
+Use head() to show final result
+
+```{r merge mean Ct values with rest of the columns - special data chipsc22}
+
+# Extract column data except for Ct values, in order to adhere to the new Ct means
+  gene_rows <- seq(1, 37, by = 6)
+  common_chipsc_data <- clean_chipsc22[gene_rows, !colnames(clean_chipsc22) %in% 'Ct'] # Exclude Ct column
+  RSPO3_data <- clean_D0_chipsc22[clean_D0_chipsc22$Detector.Name == 'RSPO3-Sybr' & clean_D0_chipsc22$Sample.Name == 'D1', !colnames(clean_D0_chipsc22) %in% 'Ct']
+    
+  
+# Merge column data extracted above with calculated Ct mean values
+  # All chipsc wo RSPO3
+  merged_chips <- cbind(common_chipsc_data[,1:4], chipsc_Ct_mean, common_chipsc_data[,5:32])
+  # RSPO3
+  merged_RSPO3 <- cbind(RSPO3_data[1:4], mean_RSPO3, RSPO3_data[5:32])
+  colnames(merged_RSPO3) <- names(merged_chips)
+  
+  
+# rbind() merged_chipsc and merged_RSPO3 to get all mean Ct values from chiPSC22 in one df
+  complete_chipsc_mean <- rbind(merged_chips, merged_RSPO3)
+
+  
+# Use head() to demonstrate how data looks
+# print(head(complete_chipsc_mean))
+
+```
+
+```{r hidden code for head() mean - special data chipsc22, echo=FALSE, results='asis'}
+
+# To make the html file look nice: this chunk is added to print the full data, while not showing the actual code in the html file. 
+  
+  cat("Head of the data frame with mean Ct values and all columns:\n")
+  cat(capture.output(head(complete_chipsc_mean)), sep="\n")
+
+```
+
+<br>
+<br>
+
+Here, data is ordered after gene markers (according to how they are structured on the plate). 
+  
+```{r order after genes - special data chipsc22}
+  
+# Order data frames after desired gene marker order
+
+  # First, convert the 'gene' column to a factor with levels in the desired order
+  complete_chipsc_mean$Detector.Name <- factor(complete_chipsc_mean$Detector.Name, 
+                                     levels = c('Actb-SYBR', 'GAPDH-Syber', 'SOX17-Sybr', 'RSPO3-Sybr', 'SPINK2-Sybr', 'HOXA9-Sybr', 'Runx1', 'Gata2-Sybr'))
+
+  # Order data accordingly
+  geneord_chipsc22 <- complete_chipsc_mean[order(complete_chipsc_mean$Detector.Name),]
+  
+```
+
+<br>
+<br>
+
+Here, columns containing information that is of no interest are excluded.
+The chiPSC22 df we are left with contain all necessary data for continued analysis, utilizing whatever R package available. 
+
+The data might need to be modified further to fit the required structure for whatever R package you want to use. 
+
+```{r columns with info added & filtering of data - special data chipsc22}
+
+# Create column with important data (sample, time point, position), which we then want to add to correct the chiPSC22 df
+  Sample <- rep('chiPSC22', nrow(geneord_chipsc22))
+  Day_chipsc <- rep('Day -1', nrow(geneord_chipsc22))
+  Row_position <- c('F', 'G', 'A', 'D_rspo3', 'B', 'C', 'D_runx1', 'E')
+  
+  columns_chipsc <- data.frame(Sample, Day_chipsc, Row_position)
+  
+  # Add created columns to data frames accordingly
+  cbound_chipsc22 <- cbind(columns_chipsc, geneord_chipsc22)
+  
+  
+# Create a df with only columns of interest from the cbound_chipsc22 df
+  
+  col_index_chipsc <- c(1:3, 5, 8)
+  
+  Filtered_chipsc22 <- cbound_chipsc22[,col_index_chipsc]
+  
+  # Assign a new names to the 1-7th columns
+  col_names_chipsc <- c('Sample', 'Time point', 'Row position', 'Gene', 'Mean Ct')
+  names(Filtered_chipsc22)[1:5] <- col_names_chipsc
+  
+  
+# Use head() to demonstrate how data looks
+# print(head(Filtered_chipsc22))
+  
+```
+
+```{r hidden code for head() final - special data chipsc22, echo=FALSE, results='asis'}
+
+# To make the html file look nice: this chunk is added to print the full data, while not showing the actual code in the html file. 
+  
+  cat("Head of the data frame Filtered_chipsc22:\n")
+  cat(capture.output(head(Filtered_chipsc22)), sep="\n")
+
+```
+
+<br>
+
+### Save the filtered data for further data analysis
+
+Save the filtered dfs, so they can be accessed by the Data Analysis Notebook.
+
+```{r save filtered data - all data}
+
+# Create one complete list with all dfs, name them accordingly otherwise will be ordered as [[i]] in list
+complete_filtered_list <- c(list(Filtered_d0), Filtered_list_common, list(Filtered_chipsc22))
+names(complete_filtered_list) <- c('Filtered_d0', 'Filtered_d3.1', 'Filtered_d3.2', 'Filtered_d8.1', 'Filtered_d8.2', 
+                                   'Filtered_d13.1', 'Filtered_d13.2', 'Filtered_chipsc22')
+
+# Save to computer
+save(complete_filtered_list, file = "all_filtered.RData")
+
+```
+
+
