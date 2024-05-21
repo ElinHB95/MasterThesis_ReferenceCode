@@ -1,0 +1,298 @@
+---
+title: "Analysis of Exp io RT-qPCR Data: Average Ct Calculations"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = normalizePath('~/Documents/Master/PCR/RStudio/RStudio_qPCR_Exp1.cDNA/Data Analysis'))
+
+```
+
+
+Load files into R
+
+```{r load files into notebook}
+
+# Load the saved list of data frames (dfs) into R Notebook
+  load("/Users/elinberntsson/Documents/Master/PCR/RStudio/RStudio_qPCR_Exp1.cDNA/all_filtered.RData")
+
+# Dfs we have to work with
+  lapply(names(complete_filtered_list), function(x) assign(x, complete_filtered_list[[x]], envir = .GlobalEnv))
+
+```
+
+Look through dfs and check for outliers in the Ct values
+
+```{r removal of any outliers}
+
+# Go through dfs and remove if any outliers in the Ct column
+
+  #Filtered_d13.2 <- Filtered_d13.2[Filtered_d13.2$Ct != 'Undetermined',] # Have not checked more outliers than the rows with 'Undetermined' in them - will do this!
+
+# Replace 'Undetermined' with 'NA' instead
+
+  # replaced_ct <- as.numeric(replace(Filtered_d13.2$Ct, Filtered_d13.2$Ct == 'Undetermined', NA))
+  # 
+  # Filtered_d13.2 <- cbind(Filtered_d13.2[, !colnames(Filtered_d13.2) %in% 'Ct'], Ct = replaced_ct)
+
+# D0 and D13.2 - Undetermined to NA
+  Filtered_d0$Ct <- ifelse(Filtered_d0$Ct == "Undetermined", NA, as.numeric(Filtered_d0$Ct))
+
+  Filtered_d13.2$Ct <- ifelse(Filtered_d13.2$Ct == "Undetermined", NA, as.numeric(Filtered_d13.2$Ct))
+  
+# D3.1 and D8.1 SPINK2 outliers - Ct outliers to NA
+  
+  # D3.1 SPINK2 3uM Position E6 possible outlier
+  Filtered_d3.1$Ct[Filtered_d3.1$Position == "E6"] <- NA 
+  
+  # D8.1 SPINK2 1.8uM Position E3 possible outlier
+  Filtered_d8.1$Ct[Filtered_d8.1$Position == "E3"] <- NA
+  
+  # D8.1 SPINK2 5uM Position E7 possible outlier
+  Filtered_d8.1$Ct[Filtered_d8.1$Position == "E7"] <- NA
+
+```
+
+
+Calculate mean Ct values for gene markers within each df
+
+```{r calculate mean Ct for filtered dfs}
+
+# Function that calculates mean of every n:th row in column with Ct values
+
+  mean_Ct <- function(df, column) {
+    n <- 3 # 3 technical replicates we want to average over
+  
+    means_vector <- numeric()
+  
+    # Calculate means for each set of n rows
+    for (i in seq(1, nrow(df), by = n)) {
+    
+      end_i <- min(i + n -1, nrow(df))
+      means_vector <- c(means_vector, mean(as.numeric(df[i:end_i, column]), na.rm = TRUE))
+    }
+  
+    return(means_vector) # Includes all calculated Ct means
+  }
+
+
+# Calculate mean Ct for genes in D: 0, 3, 8, 13 dfs with function created above
+
+  gene_rows_d0 <- seq(from = 1, by = 3, length.out = 16) # To get row information for each gene and condition from day 0
+  gene_rows <- seq(from = 1, by = 3, length.out = 24) # To get row information for each gene and condition from day: 3, 8, 13
+  
+  #Day 0
+  Mean_d0 <- cbind(Filtered_d0[gene_rows_d0, !colnames(Filtered_d0) %in% 'Ct'], 'Mean Ct' = mean_Ct(Filtered_d0, 'Ct'))
+  
+  #Day 3
+  Mean_d3.1 <- cbind(Filtered_d3.1[gene_rows, !colnames(Filtered_d3.1) %in% 'Ct'], 'Mean Ct' = mean_Ct(Filtered_d3.1, 'Ct'))
+  Mean_d3.2 <- cbind(Filtered_d3.2[gene_rows, !colnames(Filtered_d3.2) %in% 'Ct'], 'Mean Ct' = mean_Ct(Filtered_d3.2, 'Ct'))
+  
+  #Day 8
+  Mean_d8.1 <- cbind(Filtered_d8.1[gene_rows, !colnames(Filtered_d8.1) %in% 'Ct'], 'Mean Ct' = mean_Ct(Filtered_d8.1, 'Ct'))
+  Mean_d8.2 <- cbind(Filtered_d8.2[gene_rows, !colnames(Filtered_d8.2) %in% 'Ct'], 'Mean Ct' = mean_Ct(Filtered_d8.2, 'Ct'))
+  
+  #Day 13
+  Mean_d13.1 <- cbind(Filtered_d13.1[gene_rows, !colnames(Filtered_d13.1) %in% 'Ct'], 'Mean Ct' = mean_Ct(Filtered_d13.1, 'Ct'))
+  Mean_d13.2 <- cbind(Filtered_d13.2[gene_rows, !colnames(Filtered_d13.2) %in% 'Ct'], 'Mean Ct' = mean_Ct(Filtered_d13.2, 'Ct'))
+  
+
+
+```
+
+
+```{r calculate average of ACTB and GAPDH Ct values to use as reference}
+
+# Need to average the housekeeping gene Ct values
+
+# mean_hk_3_CG<-mean(c(Mean_d3.1[Mean_d3.1$Gene=="Actb-SYBR" & Mean_d3.1$Condition=="3", "Mean Ct"], Mean_d3.1[Mean_d3.1$Gene=="GAPDH-Syber" & Mean_d3.1$Condition=="3", "Mean Ct"]))
+
+
+## Day 0
+
+mean_values_d0 <- c(mean(c(Mean_d0[Mean_d0$Gene == "Actb-SYBR" & Mean_d0$Bioreplica == '2.1', "Mean Ct"],
+                          Mean_d0[Mean_d0$Gene == "GAPDH-Syber" & Mean_d0$Bioreplica == '2.1', "Mean Ct"])), 
+                   mean(c(Mean_d0[Mean_d0$Gene == "Actb-SYBR" & Mean_d0$Bioreplica == '2.2', "Mean Ct"],
+                          Mean_d0[Mean_d0$Gene == "GAPDH-Syber" & Mean_d0$Bioreplica == '2.2', "Mean Ct"])))
+
+hk_full_d0 <- cbind(Mean_d0[1:2,1:4], Position = c('NA', 'NA'), Gene = c('ACTB_GAPDH', 'ACTB_GAPDH'), 'Mean Ct' = mean_values_d0)
+
+full_hk_d0 <- rbind(hk_full_d0, Mean_d0[Mean_d0$Gene != 'Actb-SYBR' & Mean_d0$Gene != 'GAPDH-Syber',])
+
+
+
+## Day 3, 8, 13
+
+
+# Function that calculates mean Ct value for reference genes per condition (1.8, 3, 5 uM) and fills vector, named accordingly, with resulting values
+  mean_hk <- function(df, day, replica, Condition) {
+  
+    mean_values <- numeric(length(Condition)) # Initialize a vector to store mean values
+  
+    for (i in 1:length(Condition)) {
+    
+        mean_value <- mean(c(df[df$Gene == "Actb-SYBR" & df$Condition == as.character(Condition[i]), "Mean Ct"],
+                          df[df$Gene == "GAPDH-Syber" & df$Condition == as.character(Condition[i]), "Mean Ct"]))
+        mean_values[i] <- mean_value # Store mean value in the vector
+    }
+  
+    vector_name <- paste("mean_hk", '_', day, '.', replica, sep = "") # Create a name for the vector
+    assign(vector_name, mean_values, envir = .GlobalEnv) # Assign the vector to a name in the global environment
+  }
+
+
+# Use mean_hk function
+
+  Condition <- c(3, 1.8, 5) #Same for all D: 3, 8, 13
+  
+  #Day 3
+  mean_hk(Mean_d3.1, 'd3', '1', Condition)
+  mean_hk(Mean_d3.2, 'd3', '2', Condition)
+  
+  #Day 8
+  mean_hk(Mean_d8.1, 'd8', '1', Condition)
+  mean_hk(Mean_d8.2, 'd8', '2', Condition)
+  
+  #Day 13
+  mean_hk(Mean_d13.1, 'd13', '1', Condition)
+  mean_hk(Mean_d13.2, 'd13', '2', Condition)
+
+
+
+# Create updated dfs with previous ACTB and GAPDH rows excluded, with new reference gene Ct values added in their place
+
+hk_common_info <- Mean_d3.1[1:3,1:5] # Use Mean_d3.1 as basis, as all dfs (D: 3, 8, 13) look the same 
+NA_position <- rep('NA', 3)
+hk_name <- rep('ACTB_GAPDH', 3) # Combined reference gene name, same for all dfs
+
+
+# hk_full: function that adds common info about the hk genes to the calculated mean Ct values per condition
+## also exchanges the separate ACTB and GAPDH rows with newly generated ones
+
+hk_full <- function(Mean_df, mean_hk_vector, day, replica) {
+  
+  # cbind info with calculated averages 
+  hk_full <- cbind(hk_common_info, Position = NA_position, Gene = hk_name, 'Mean Ct' = mean_hk_vector)
+  
+  # rbind new reference gene dfs (hk_full) with original Mean_dX df
+  full_hk <- rbind(hk_full, Mean_df[Mean_df$Gene != 'Actb-SYBR' & Mean_df$Gene != 'GAPDH-Syber',])
+  
+  full_hk_name <- paste("full_hk", '_', day, '.', replica, sep = "") # Create a name for the df with average hk Ct:s
+  
+  # Assign new full_hk df a name and save in .GlobalEnv
+  assign(full_hk_name, full_hk, envir = .GlobalEnv) # Assign the vector to a name in the global environment
+  
+}
+
+
+# Use hk_full function
+
+  #Day 3
+  hk_full(Mean_d3.1, mean_hk_d3.1, 'd3', '1')
+  hk_full(Mean_d3.2, mean_hk_d3.2, 'd3', '2')
+  
+  #Day 8
+  hk_full(Mean_d8.1, mean_hk_d8.1, 'd8', '1')
+  hk_full(Mean_d8.2, mean_hk_d8.2, 'd8', '2')
+  
+  #Day 13
+  hk_full(Mean_d13.1, mean_hk_d13.1, 'd13', '1')
+  hk_full(Mean_d13.2, mean_hk_d13.2, 'd13', '2')
+  
+  
+
+
+```
+
+```{r average hk genes in chipsc22 df}
+
+  mean_hk_chipsc <- mean(Filtered_chipsc22[c(1, 2), 'Mean Ct']) # Average Ct value for reference gene from chipsc22 df
+
+  hk_chipsc <- data.frame(Filtered_chipsc22[1,1:2], 'NA', 'ACTB_GAPDH', mean_hk_chipsc) # New row with new mean Ct
+
+  # Exchange old hk gene values with newly calculated one mean_hk_chipsc
+  names(hk_chipsc) <- names(Filtered_chipsc22)
+  full_hk_chipsc <- rbind(hk_chipsc, Filtered_chipsc22[-c(1,2),])
+
+```
+
+
+
+
+```{r create dataframe with one column for each gene, with all mean Ct values included}
+
+# We need one column with hk gene Ct values
+# We need columns with gene of interest values
+
+  
+  
+# for loop to create vectors with mean Ct values for each gene, to be merged with cbind() into combined_gene_analysis below
+  genes_vector <- c('ACTB_GAPDH', 'SOX17-Sybr', 'RSPO3-Sybr', 'SPINK2-Sybr', 'HOXA9-Sybr', 'Runx1', 'Gata2-Sybr')
+  gene_names <- c('hk', 'sox17', 'rspo3', 'spink2', 'hoxa9', 'runx1', 'gata2')
+  
+  gene_analysis_names <- NULL
+  
+  for (i in 1:length(genes_vector)) {
+    gene_analysis_name <- paste(gene_names[i], 'gene', 'analysis', sep = '_')
+    gene_analysis_names[[i]] <- gene_analysis_name
+    
+    # ct_per_gene <- c(full_hk_chipsc[full_hk_chipsc$Gene == genes_vector[i], 'Mean Ct'], 
+    #                   order_hk_d3.1[order_hk_d3.1$Gene == genes_vector[i], 'Mean Ct'], 
+    #                   order_hk_d3.2[order_hk_d3.2$Gene == genes_vector[i], 'Mean Ct'],
+    #                   order_hk_d8.1[order_hk_d8.1$Gene == genes_vector[i], 'Mean Ct'],
+    #                   order_hk_d8.2[order_hk_d8.2$Gene == genes_vector[i], 'Mean Ct'],
+    #                   order_hk_d13.1[order_hk_d13.1$Gene == genes_vector[i], 'Mean Ct'],
+    #                   order_hk_d13.2[order_hk_d13.2$Gene == genes_vector[i], 'Mean Ct'])
+    
+    ct_per_gene <- c(full_hk_chipsc[full_hk_chipsc$Gene == genes_vector[i], 'Mean Ct'],
+                      full_hk_d0[full_hk_d0$Gene == genes_vector[i], 'Mean Ct'],
+                      full_hk_d3.1[full_hk_d3.1$Gene == genes_vector[i], 'Mean Ct'],
+                      full_hk_d3.2[full_hk_d3.2$Gene == genes_vector[i], 'Mean Ct'],
+                      full_hk_d8.1[full_hk_d8.1$Gene == genes_vector[i], 'Mean Ct'],
+                      full_hk_d8.2[full_hk_d8.2$Gene == genes_vector[i], 'Mean Ct'],
+                      full_hk_d13.1[full_hk_d13.1$Gene == genes_vector[i], 'Mean Ct'],
+                      full_hk_d13.2[full_hk_d13.2$Gene == genes_vector[i], 'Mean Ct'])
+    
+    assign(gene_analysis_name, ct_per_gene)
+  }
+  
+  
+  
+  
+group_var <- c('chiPSC22', rep(c('D0 2.1', 'D0 2.2')),
+                          rep(c('D3 3uM', 'D3 1.8uM', 'D3 5uM'), 2), 
+                          rep(c('D8 3uM', 'D8 1.8uM', 'D8 5uM'), 2),
+                          rep(c('D13 3uM', 'D13 1.8uM', 'D13 5uM'), 2))
+
+combined_gene_analysis <- data.frame(ACTB_GAPDH = as.numeric(hk_gene_analysis), 
+                                     SOX17 = as.numeric(sox17_gene_analysis), 
+                                     RSPO3 = as.numeric(rspo3_gene_analysis),
+                                     SPINK2 = as.numeric(spink2_gene_analysis),
+                                     HOXA9 = as.numeric(hoxa9_gene_analysis),
+                                     RUNX1 = as.numeric(runx1_gene_analysis),
+                                     GATA2 = as.numeric(gata2_gene_analysis),
+                                     Group = group_var)
+
+# Reorder data so all 1.8uM comes first, then 3uM...
+
+combined_gene_analysis$Group <- factor(combined_gene_analysis$Group, levels = c('chiPSC22', 'D0 2.1', 'D0 2.2', 
+                                                                                'D3 1.8uM', 'D8 1.8uM', 'D13 1.8uM', 
+                                                                                'D3 3uM', 'D8 3uM', 'D13 3uM',
+                                                                                'D3 5uM', 'D8 5uM', 'D13 5uM'))
+
+
+all_genes_ordered <- combined_gene_analysis[order(combined_gene_analysis$Group),]
+
+
+ write.csv(all_genes_ordered, file="genes_all_final.csv")
+ 
+```
+
+
+
+
+
