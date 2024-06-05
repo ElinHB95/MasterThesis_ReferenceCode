@@ -13,7 +13,7 @@ knitr::opts_knit$set(root.dir = normalizePath('~/Documents/Master/PCR/RStudio/RS
 ```
 
 
-Load files into R
+Load files into R.
 
 ```{r load files into notebook}
 
@@ -25,7 +25,8 @@ Load files into R
 
 ```
 
-Look through dfs and check for outliers in the Ct values
+Look through dfs and check for outliers in the Ct values.
+Remove any outliers.
 
 ```{r removal of any outliers}
 
@@ -58,7 +59,7 @@ Look through dfs and check for outliers in the Ct values
 ```
 
 
-Calculate mean Ct values for gene markers within each df
+Calculate mean Ct values for gene markers within each df.
 
 ```{r calculate mean Ct for filtered dfs}
 
@@ -104,6 +105,7 @@ Calculate mean Ct values for gene markers within each df
 
 ```
 
+Calculate mean Ct values for the housekeeping gene markers.
 
 ```{r calculate average of ACTB and GAPDH Ct values to use as reference}
 
@@ -208,6 +210,8 @@ hk_full <- function(Mean_df, mean_hk_vector, day, replica) {
 
 ```
 
+
+Calculate mean Ct values for housekeeping gene markers within the BPT datset.
 ```{r average hk genes in chipsc22 df}
 
   mean_hk_chipsc <- mean(Filtered_chipsc22[c(1, 2), 'Mean Ct']) # Average Ct value for reference gene from chipsc22 df
@@ -221,7 +225,8 @@ hk_full <- function(Mean_df, mean_hk_vector, day, replica) {
 ```
 
 
-
+Create a df with a column for each gene, including all calculated mean Ct values.
+Create a cvs file with all data included.
 
 ```{r create dataframe with one column for each gene, with all mean Ct values included}
 

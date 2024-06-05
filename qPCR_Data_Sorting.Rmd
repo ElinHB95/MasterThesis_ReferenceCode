@@ -17,7 +17,7 @@ knitr::opts_knit$set(root.dir = normalizePath('~/Documents/Master/PCR/RStudio/RS
 
 
 
-##### qPCR Data: Frozen cDNA chiPSC22 and Exp1 (D:0,3,8,13)
+##### qPCR Data: Frozen cDNA chiPSC22 and ExpIO (=Exp1 in this code) (D:0,3,8,13)
 
 
 In this first part, R reads data into a common list and then extracts each list data frame (df) into separate dfs with names accordingly.
@@ -299,7 +299,7 @@ The data might need to be modified further to fit the required structure for wha
 
 <br>
 
-In the following parts, the 'special' data files are handled and cleaned separately. First data from Exp 1 D0, followed by chiPSC22 data. 
+In the following parts, the 'special' data files are handled and cleaned separately. First data from Exp 1 D0, followed by chiPSC22 (BPT) data. 
 
 Code starts with creating dfs with desired data - desired list elements from data_list_special are extracted into separate dfs, with corresponding names. 
 head() is used to demonstrate the structure of the complete, unsorted data.
